@@ -73,7 +73,7 @@ let
         shortRev = builtins.substring 0 7 info.rev;
       }
     else
-      # FIXME: add Mercurial, tarball inputs.
+      # FIXME: add Mercurial inputs.
       throw "flake input has unsupported input type '${info.type}'";
 
   callFlake4 = flakeSrc: locks:
