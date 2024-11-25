@@ -5,7 +5,7 @@
 To use, add the following to your `flake.nix`:
 
 ```nix
-inputs.flake-compat.url = "https://git.lix.systems/lix-project/flake-compat/archive/main.tar.gz";
+inputs.flake-compat.url = "git+https://git.lix.systems/lix-project/flake-compat";
 ```
 
 Afterwards, create a `default.nix` file containing the following:
@@ -13,10 +13,13 @@ Afterwards, create a `default.nix` file containing the following:
 ```nix
 (import
   (
-    let lock = builtins.fromJSON (builtins.readFile ./flake.lock); in
+    let
+      lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+      inherit (lock.nodes.flake-compat.locked) narHash rev url;
+    in
     fetchTarball {
-      url = lock.nodes.flake-compat.locked.url;
-      sha256 = lock.nodes.flake-compat.locked.narHash;
+      url = "${url}/archive/${rev}.tar.gz";
+      sha256 = narHash;
     }
   )
   { src = ./.; }
