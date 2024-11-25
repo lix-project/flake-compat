@@ -5,7 +5,11 @@
 To use, add the following to your `flake.nix`:
 
 ```nix
-inputs.flake-compat.url = "git+https://git.lix.systems/lix-project/flake-compat";
+inputs.flake-compat = {
+  url = "git+https://git.lix.systems/lix-project/flake-compat";
+  # Optional:
+  flake = false;
+};
 ```
 
 Afterwards, create a `default.nix` file containing the following:
