@@ -1,0 +1,6 @@
+[project]
+name = "flake-compat"
+version = "0.0.0"
+dependencies = [
+    "pytest",
+]
