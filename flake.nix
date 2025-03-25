@@ -1,5 +1,5 @@
 {
-  description = "Allow flakes to be used with Nix < 2.4";
+  description = "Allow flakes to be evaluated from non-flake contexts";
 
   outputs =
     { self }:
