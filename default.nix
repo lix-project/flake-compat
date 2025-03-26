@@ -117,7 +117,11 @@ let
     else if info.type == "path" then
       {
         outPath = builtins.path (
-          { path = info.path; } // (if info ? narHash then { sha256 = info.narHash; } else { })
+          {
+            path = info.path;
+            name = "source";
+          }
+          // (if info ? narHash then { sha256 = info.narHash; } else { })
         );
       }
     else if info.type == "tarball" then
@@ -228,7 +232,10 @@ let
                   # If it's already a store path, don't copy it again.
                   builtins.storePath tree
                 else
-                  "${tree}"
+                  builtins.path {
+                    path = tree;
+                    name = "source";
+                  }
               else
                 tree;
           };
