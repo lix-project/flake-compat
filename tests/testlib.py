@@ -1,9 +1,9 @@
-from pathlib import Path
 import dataclasses
-import subprocess
-import shutil
 import json
 import os
+import shutil
+import subprocess
+from pathlib import Path
 
 src = Path(__file__).parent
 

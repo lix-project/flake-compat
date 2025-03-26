@@ -1,5 +1,6 @@
 from pathlib import Path
-from tests.testlib import copy_fixture, nix, flake_compat_arg
+
+from tests.testlib import copy_fixture, flake_compat_arg, nix
 
 
 # May fail randomly due to: https://git.lix.systems/lix-project/lix/issues/750
