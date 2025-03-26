@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 src = Path(__file__).parent
 
@@ -28,6 +29,23 @@ class NixResult:
 
     def json(self):
         return json.loads(self.proc.stdout)
+
+
+def nix_eval_flake_compat(tmpdir: Path, attr: str, extra_args: list[str] = []) -> Any:
+    return nix(
+        "eval",
+        "--json",
+        *flake_compat_arg,
+        *extra_args,
+        "-f",
+        "default.nix",
+        attr,
+        work_dir=tmpdir,
+    ).json()
+
+
+def nix_eval_flake_attr(tmpdir: Path, attr: str, extra_args: list[str] = []) -> Any:
+    return nix("eval", "--json", *extra_args, ".#" + attr, work_dir=tmpdir).json()
 
 
 def nix(

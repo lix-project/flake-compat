@@ -1,12 +1,24 @@
-# Compatibility function to allow flakes to be used by
-# non-flake-enabled Nix versions. Given a source tree containing a
-# 'flake.nix' and 'flake.lock' file, it fetches the flake inputs and
-# calls the flake's 'outputs' function. It then returns an attrset
-# containing 'defaultNix' (to be used in 'default.nix'), 'shellNix'
-# (to be used in 'shell.nix').
+# An implementation of Flakes in Nix language, useful for validating and
+# specifying flake behaviour, evaluating flakes in unintended ways, and
+# otherwise experimenting with them. It also allows evaluating flakes on
+# non-flake-compatible Nix implementations.
+#
+# Given a source tree containing a 'flake.nix' and 'flake.lock' file,
+# flake-compat fetches the flake inputs and calls the flake's 'outputs'
+# function. It then returns an attrset containing 'defaultNix' (to be used in
+# 'default.nix'), 'shellNix' (to be used in 'shell.nix').
 
 {
   src,
+  # Whether to (slowly) copy the entire source tree into the Nix store.
+  # Disabling this improves evaluation speed immensely at the cost of
+  # deleting the alleged purity gained by flakes: no longer obeying
+  # gitignores.
+  #
+  # It is recommended anyway to do explicit file filtering using e.g.
+  # lib.filesets in nixpkgs rather than copying entire directories, since it
+  # improves evaluation performance and reduces spurious rebuilds.
+  copySourceTreeToStore ? true,
   system ? builtins.currentSystem or "unknown-system",
 }:
 
@@ -15,6 +27,11 @@ let
   lockFilePath = src + "/flake.lock";
 
   lockFile = builtins.fromJSON (builtins.readFile lockFilePath);
+
+  optionalAttrs = cond: attrs: if cond then attrs else { };
+  copyAttrIfPresent =
+    name: attrs: if builtins.hasAttr name attrs then { "${name}" = attrs."${name}"; } else { };
+  maybeNarHash = attrs: optionalAttrs (attrs ? narHash) { sha256 = attrs.narHash; };
 
   # Using custom fetchurl function here so that we can specify outputHashMode.
   # The hash we get from the lock file is using recursive ingestion even though
@@ -61,7 +78,9 @@ let
       urls = [ url ];
     };
 
-  fetchTree =
+  fetchTree = info: fetchTreeInner info // copyAttrIfPresent "narHash" info;
+
+  fetchTreeInner =
     info:
     if info.type == "github" then
       {
@@ -69,13 +88,12 @@ let
           {
             url = "https://api.${info.host or "github.com"}/repos/${info.owner}/${info.repo}/tarball/${info.rev}";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         rev = info.rev;
         shortRev = builtins.substring 0 7 info.rev;
         lastModified = info.lastModified;
         lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        narHash = info.narHash;
       }
     else if info.type == "git" then
       {
@@ -83,56 +101,51 @@ let
           {
             url = info.url;
           }
-          // (if info ? rev then { inherit (info) rev; } else { })
-          // (if info ? ref then { inherit (info) ref; } else { })
-          // (if info ? submodules then { inherit (info) submodules; } else { })
+          // copyAttrIfPresent "rev" info
+          // copyAttrIfPresent "ref" info
+          // copyAttrIfPresent "submodules" info
         );
         lastModified = info.lastModified;
         lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        narHash = info.narHash;
+        revCount = info.revCount or 0;
       }
-      // (
-        if info ? rev then
-          {
-            rev = info.rev;
-            shortRev = builtins.substring 0 7 info.rev;
-          }
-        else
-          {
-          }
-      )
+      // optionalAttrs (info ? rev) {
+        inherit (info) rev;
+        shortRev = builtins.substring 0 7 info.rev;
+      }
     else if info.type == "path" then
       {
         outPath = builtins.path (
-          { path = info.path; } // (if info ? narHash then { sha256 = info.narHash; } else { })
+          {
+            inherit (info) path;
+            name = "source";
+          }
+          // maybeNarHash info
         );
       }
     else if info.type == "tarball" then
       {
-        outPath = fetchTarball (
-          { inherit (info) url; } // (if info ? narHash then { sha256 = info.narHash; } else { })
-        );
-        narHash = info.narHash;
+        outPath = fetchTarball ({ inherit (info) url; } // maybeNarHash info);
       }
     else if info.type == "gitlab" then
       {
-        inherit (info) rev narHash lastModified;
+        inherit (info) rev lastModified;
         outPath = fetchTarball (
           {
             url = "https://${info.host or "gitlab.com"}/api/v4/projects/${info.owner}%2F${info.repo}/repository/archive.tar.gz?sha=${info.rev}";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         shortRev = builtins.substring 0 7 info.rev;
       }
     else if info.type == "sourcehut" then
       {
-        inherit (info) rev narHash lastModified;
+        inherit (info) rev lastModified;
         outPath = fetchTarball (
           {
             url = "https://${info.host or "git.sr.ht"}/${info.owner}/${info.repo}/archive/${info.rev}.tar.gz";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         shortRev = builtins.substring 0 7 info.rev;
       }
@@ -142,17 +155,17 @@ let
           if
             builtins.substring 0 7 info.url == "http://" || builtins.substring 0 8 info.url == "https://"
           then
-            fetchurl ({ inherit (info) url; } // (if info ? narHash then { sha256 = info.narHash; } else { }))
+            fetchurl ({ inherit (info) url; } // maybeNarHash info)
           else if builtins.substring 0 7 info.url == "file://" then
             builtins.path (
               {
+                # FIXME(jade): this probably should be called source? needs a test
                 path = builtins.substring 7 (-1) info.url;
               }
-              // (if info ? narHash then { sha256 = info.narHash; } else { })
+              // maybeNarHash info
             )
           else
             throw "can't support url scheme of flake input with url '${info.url}'";
-        narHash = info.narHash;
       }
     else
       # FIXME: add Mercurial inputs.
@@ -184,15 +197,16 @@ let
     in
     outputs;
 
-  rootSrc =
+  rootTreeFromPathish =
+    tree:
     let
       # Try to clean the source tree by using fetchGit, if this source
       # tree is a valid git repository.
       tryFetchGit =
-        src:
+        tree:
         if isGit && !isShallow then
           let
-            res = builtins.fetchGit src;
+            res = builtins.fetchGit tree;
           in
           if res.rev == "0000000000000000000000000000000000000000" then
             removeAttrs res [
@@ -204,30 +218,42 @@ let
         else
           {
             outPath =
-              # Massage `src` into a store path.
-              if builtins.isPath src then
+              # Massage `tree` into a store path.
+              if builtins.isPath tree then
                 if
-                  dirOf (toString src) == builtins.storeDir
+                  dirOf (toString tree) == builtins.storeDir
                   # `builtins.storePath` is not available in pure-eval mode.
                   && builtins ? currentSystem
                 then
                   # If it's already a store path, don't copy it again.
-                  builtins.storePath src
+                  builtins.storePath tree
                 else
-                  "${src}"
+                  builtins.path {
+                    path = tree;
+                    name = "source";
+                  }
               else
-                src;
+                tree;
           };
       # NB git worktrees have a file for .git, so we don't check the type of .git
-      isGit = builtins.pathExists (src + "/.git");
-      isShallow = builtins.pathExists (src + "/.git/shallow");
+      isGit = builtins.pathExists (tree + "/.git");
+      isShallow = builtins.pathExists (tree + "/.git/shallow");
 
     in
     {
       lastModified = 0;
       lastModifiedDate = formatSecondsSinceEpoch 0;
     }
-    // (if src ? outPath then src else tryFetchGit src);
+    // (if tree ? outPath then tree else tryFetchGit tree);
+
+  rootSrc = rootTreeFromPathish (
+    if copySourceTreeToStore then
+      src
+    else
+      # *hacker voice*: it's definitely a store path, I promise (actually a
+      # nixlang path value, likely not pointing at the store).
+      { outPath = src; }
+  );
 
   # Format number of seconds in the Unix epoch as %Y%m%d%H%M%S.
   formatSecondsSinceEpoch =
@@ -333,7 +359,7 @@ let
 
 in
 rec {
-  inputs = result.inputs // {
+  inputs = result.inputs or { } // {
     self = result;
   };
 
