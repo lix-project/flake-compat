@@ -333,7 +333,7 @@ let
 
 in
 rec {
-  inputs = result.inputs // {
+  inputs = result.inputs or { } // {
     self = result;
   };
 
