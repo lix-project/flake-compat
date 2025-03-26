@@ -19,6 +19,15 @@
   # lib.filesets in nixpkgs rather than copying entire directories, since it
   # improves evaluation performance and reduces spurious rebuilds.
   copySourceTreeToStore ? true,
+  # Whether to use native builtins.fetchTree. In the future, this *might*
+  # become `builtins ? fetchTree`, but Lix in versions prior to 2.93
+  # (https://gerrit.lix.systems/c/lix/+/2399) had a fetchTree that throws in an
+  # uncatchable way if flakes are disabled.
+  #
+  # At a broader level, we are *to some extent* documenting
+  # builtins.fetchTree's oddities by implementing it in this project and it
+  # would not be ideal to lose that.
+  useBuiltinsFetchTree ? false,
   system ? builtins.currentSystem or "unknown-system",
 }:
 
@@ -98,7 +107,12 @@ let
       urls = [ url ];
     };
 
-  fetchTree = info: fetchTreeInner info // copyAttrIfPresent "narHash" info;
+  fetchTree =
+    info:
+    if useBuiltinsFetchTree then
+      builtins.fetchTree info
+    else
+      fetchTreeInner info // copyAttrIfPresent "narHash" info;
 
   fetchTreeInner =
     info:

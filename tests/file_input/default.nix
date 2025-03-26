@@ -3,8 +3,9 @@
   # Required to be duplicated since --arg autocall is HAUNTED
   # See: https://git.lix.systems/lix-project/lix/issues/263
   copySourceTreeToStore ? true,
+  useBuiltinsFetchTree ? false,
 }:
 (import flake-compat {
   src = ./.;
-  inherit copySourceTreeToStore;
+  inherit copySourceTreeToStore useBuiltinsFetchTree;
 }).defaultNix

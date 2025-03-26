@@ -53,6 +53,7 @@ def nix(
     work_dir: Path | None = None,
     command: str = "nix",
     experimental_features: set[str] = {"nix-command", "flakes"},
+    capture_stderr: bool = False,
 ) -> NixResult:
     # FIXME(jade): maybe should copy or reference the lix functional2 test suite?
     config = {"experimental-features": " ".join(experimental_features)}
@@ -61,9 +62,15 @@ def nix(
         new_env.get("NIX_CONFIG", "") + "\n" + format_nix_config(config)
     )
     print(f"$ {command}", " ".join(args))
+
+    stderr = subprocess.PIPE if capture_stderr else None
     res = NixResult(
         subprocess.run(
-            [command] + list(args), env=new_env, cwd=work_dir, stdout=subprocess.PIPE
+            [command] + list(args),
+            env=new_env,
+            cwd=work_dir,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
         )
     )
     print(res.proc.stdout.decode())
