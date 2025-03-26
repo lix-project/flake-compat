@@ -163,6 +163,7 @@ let
           else if builtins.substring 0 7 info.url == "file://" then
             builtins.path (
               {
+                # FIXME(jade): this probably should be called source? needs a test
                 path = builtins.substring 7 (-1) info.url;
               }
               // (if info ? narHash then { sha256 = info.narHash; } else { })
