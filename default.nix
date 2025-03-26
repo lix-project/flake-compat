@@ -28,6 +28,11 @@ let
 
   lockFile = builtins.fromJSON (builtins.readFile lockFilePath);
 
+  optionalAttrs = cond: attrs: if cond then attrs else { };
+  copyAttrIfPresent =
+    name: attrs: if builtins.hasAttr name attrs then { "${name}" = attrs."${name}"; } else { };
+  maybeNarHash = attrs: optionalAttrs (attrs ? narHash) { sha256 = attrs.narHash; };
+
   # Using custom fetchurl function here so that we can specify outputHashMode.
   # The hash we get from the lock file is using recursive ingestion even though
   # it’s not unpacked. So builtins.fetchurl and import <nix/fetchurl.nix> are
@@ -73,7 +78,9 @@ let
       urls = [ url ];
     };
 
-  fetchTree =
+  fetchTree = info: fetchTreeInner info // copyAttrIfPresent "narHash" info;
+
+  fetchTreeInner =
     info:
     if info.type == "github" then
       {
@@ -81,13 +88,12 @@ let
           {
             url = "https://api.${info.host or "github.com"}/repos/${info.owner}/${info.repo}/tarball/${info.rev}";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         rev = info.rev;
         shortRev = builtins.substring 0 7 info.rev;
         lastModified = info.lastModified;
         lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        narHash = info.narHash;
       }
     else if info.type == "git" then
       {
@@ -95,61 +101,51 @@ let
           {
             url = info.url;
           }
-          // (if info ? rev then { inherit (info) rev; } else { })
-          // (if info ? ref then { inherit (info) ref; } else { })
-          // (if info ? submodules then { inherit (info) submodules; } else { })
+          // copyAttrIfPresent "rev" info
+          // copyAttrIfPresent "ref" info
+          // copyAttrIfPresent "submodules" info
         );
         lastModified = info.lastModified;
         lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        narHash = info.narHash;
         revCount = info.revCount or 0;
       }
-      // (
-        if info ? rev then
-          {
-            rev = info.rev;
-            shortRev = builtins.substring 0 7 info.rev;
-          }
-        else
-          {
-          }
-      )
+      // optionalAttrs (info ? rev) {
+        inherit (info) rev;
+        shortRev = builtins.substring 0 7 info.rev;
+      }
     else if info.type == "path" then
       {
         outPath = builtins.path (
           {
-            path = info.path;
+            inherit (info) path;
             name = "source";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
       }
     else if info.type == "tarball" then
       {
-        outPath = fetchTarball (
-          { inherit (info) url; } // (if info ? narHash then { sha256 = info.narHash; } else { })
-        );
-        narHash = info.narHash;
+        outPath = fetchTarball ({ inherit (info) url; } // maybeNarHash info);
       }
     else if info.type == "gitlab" then
       {
-        inherit (info) rev narHash lastModified;
+        inherit (info) rev lastModified;
         outPath = fetchTarball (
           {
             url = "https://${info.host or "gitlab.com"}/api/v4/projects/${info.owner}%2F${info.repo}/repository/archive.tar.gz?sha=${info.rev}";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         shortRev = builtins.substring 0 7 info.rev;
       }
     else if info.type == "sourcehut" then
       {
-        inherit (info) rev narHash lastModified;
+        inherit (info) rev lastModified;
         outPath = fetchTarball (
           {
             url = "https://${info.host or "git.sr.ht"}/${info.owner}/${info.repo}/archive/${info.rev}.tar.gz";
           }
-          // (if info ? narHash then { sha256 = info.narHash; } else { })
+          // maybeNarHash info
         );
         shortRev = builtins.substring 0 7 info.rev;
       }
@@ -159,18 +155,17 @@ let
           if
             builtins.substring 0 7 info.url == "http://" || builtins.substring 0 8 info.url == "https://"
           then
-            fetchurl ({ inherit (info) url; } // (if info ? narHash then { sha256 = info.narHash; } else { }))
+            fetchurl ({ inherit (info) url; } // maybeNarHash info)
           else if builtins.substring 0 7 info.url == "file://" then
             builtins.path (
               {
                 # FIXME(jade): this probably should be called source? needs a test
                 path = builtins.substring 7 (-1) info.url;
               }
-              // (if info ? narHash then { sha256 = info.narHash; } else { })
+              // maybeNarHash info
             )
           else
             throw "can't support url scheme of flake input with url '${info.url}'";
-        narHash = info.narHash;
       }
     else
       # FIXME: add Mercurial inputs.
