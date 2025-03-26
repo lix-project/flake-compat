@@ -2,7 +2,12 @@
 command = "nixfmt"
 includes = ["*.nix"]
 
-[formatter.python]
+[formatter.python-format]
 command = "ruff"
 options = ["format"]
+includes = ["*.py"]
+
+[formatter.python-lint]
+command = "ruff"
+options = ["check", "--fix"]
 includes = ["*.py"]

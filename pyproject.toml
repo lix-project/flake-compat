@@ -4,3 +4,7 @@ version = "0.0.0"
 dependencies = [
     "pytest",
 ]
+
+# For more ruff config options, see: https://docs.astral.sh/ruff/configuration/
+[tool.ruff.lint]
+select = ["I"]
