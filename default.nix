@@ -33,17 +33,37 @@ let
     name: attrs: if builtins.hasAttr name attrs then { "${name}" = attrs."${name}"; } else { };
   maybeNarHash = attrs: optionalAttrs (attrs ? narHash) { sha256 = attrs.narHash; };
 
-  # Using custom fetchurl function here so that we can specify outputHashMode.
-  # The hash we get from the lock file is using recursive ingestion even though
-  # it’s not unpacked. So builtins.fetchurl and import <nix/fetchurl.nix> are
-  # insufficient.
-  # Note that this will be a derivation and not a path as fetchTarball is,
-  # causing the hash of this input to be different on flake and non-flake evaluation.
+  # Note [fetchurl of tarball files in recursive hash mode]:
+  # We have to use a custom fetchurl function here so that we can specify
+  # outputHashMode. The hash we get from the lock file is using recursive
+  # ingestion even though it’s not unpacked. So builtins.fetchurl and import
+  # <nix/fetchurl.nix> are insufficient.
   #
-  # Note: there are a bunch of related bugs and it seems like this being
-  # recursive-hashed to begin with was a mistake:
-  # https://git.lix.systems/lix-project/lix/issues/750
+  # See Note [Recursive hashing of file inputs] in lix/libfetchers/tarball.cc
+  # for details on hash modes of flake inputs and why they are always recursive.
+  # https://git.lix.systems/lix-project/lix/src/b22bee91f5a0360b93d1e1ad71fbfd2ff432bf6c/lix/libfetchers/tarball.cc#L18-L49
+  # See also: https://git.lix.systems/lix-project/lix/issues/750
+  #
+  # Note that the return value from fetchurlInner will be a derivation and not
+  # a path as builtins.fetchTree is, which will cause it to appear in inputDrvs
+  # rather than inputSrcs in derivations it appears in. We have to fix this
+  # string context to be a path with import-from-derivation using
+  # builtins.path.
   fetchurl =
+    { url, sha256 }:
+    # Force an input-from-derivation point to change the path from inputDrvs to
+    # inputSrcs: the context needs to be a path rather than a derivation to
+    # match fetchTree behaviour.
+    #
+    # This is, needless to say, sort of gross, but it does not have any real
+    # performance consequence to use builtins.path as an identity function.
+    builtins.path {
+      path = fetchurlInner { inherit url sha256; };
+      name = "source";
+      # This is the default, but let's be explicit.
+      recursive = true;
+    };
+  fetchurlInner =
     { url, sha256 }:
     derivation {
       builder = "builtin:fetchurl";
@@ -155,7 +175,10 @@ let
           if
             builtins.substring 0 7 info.url == "http://" || builtins.substring 0 8 info.url == "https://"
           then
-            fetchurl ({ inherit (info) url; } // maybeNarHash info)
+            fetchurl {
+              inherit (info) url;
+              sha256 = info.narHash;
+            }
           else if builtins.substring 0 7 info.url == "file://" then
             builtins.path (
               {

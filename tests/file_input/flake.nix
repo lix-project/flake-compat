@@ -11,5 +11,15 @@
     { lix-manifest, ... }:
     {
       inherit lix-manifest;
+
+      dependent = builtins.derivation {
+        name = "foobar";
+        system = "x86_64-linux";
+        builder = "/bin/sh";
+        args = [
+          "-c"
+          "echo ${lix-manifest}; > $out"
+        ];
+      };
     };
 }
