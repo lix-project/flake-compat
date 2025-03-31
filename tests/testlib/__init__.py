@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-src = Path(__file__).parent
+src = Path(__file__).parent.parent
 
 flake_compat_arg = ("--arg", "flake-compat", str(src / "../default.nix"))
 
