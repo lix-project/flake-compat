@@ -149,13 +149,17 @@ let
       }
     else if info.type == "path" then
       {
-        outPath = builtins.path (
-          {
-            inherit (info) path;
-            name = "source";
-          }
-          // maybeNarHash info
-        );
+        outPath =
+          if copySourceTreeToStore then
+            builtins.path (
+              {
+                inherit (info) path;
+                name = "source";
+              }
+              // maybeNarHash info
+            )
+          else
+            info.path;
       }
     else if info.type == "tarball" then
       {
