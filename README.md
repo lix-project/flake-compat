@@ -19,7 +19,8 @@ Afterwards, create a `default.nix` file containing the following:
   (
     let
       lock = builtins.fromJSON (builtins.readFile ./flake.lock);
-      inherit (lock.nodes.flake-compat.locked) narHash rev url;
+      nodeName = lock.nodes.root.inputs.flake-compat;
+      inherit (lock.nodes.${nodeName}.locked) narHash rev url;
     in
     builtins.fetchTarball {
       url = "${url}/archive/${rev}.tar.gz";
@@ -31,3 +32,9 @@ Afterwards, create a `default.nix` file containing the following:
 ```
 
 If you would like a `shell.nix` file, create one containing the above, replacing `defaultNix` with `shellNix`.
+
+You can access any flake output via the `outputs` attribute returned by `flake-compat`, e.g.
+
+```nix
+(import ... { src = ./.; }).outputs.packages.x86_64-linux.default
+```

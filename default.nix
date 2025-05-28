@@ -400,6 +400,8 @@ rec {
     self = result;
   };
 
+  outputs = result;
+
   defaultNix =
     (builtins.removeAttrs result [ "__functor" ])
     // (
