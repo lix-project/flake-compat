@@ -34,6 +34,7 @@ class NixResult:
 def nix_eval_flake_compat(tmpdir: Path, attr: str, extra_args: list[str] = []) -> Any:
     return nix(
         "eval",
+        "--show-trace",
         "--json",
         *flake_compat_arg,
         *extra_args,
