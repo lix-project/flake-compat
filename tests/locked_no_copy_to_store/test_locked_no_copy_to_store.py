@@ -29,6 +29,9 @@ def test_copy_to_store_equivalent(tmpdir: Path):
 
 def test_no_copy_to_store(tmpdir: Path):
     copy_fixture("fixtures/locked_dep", tmpdir)
+    flakePath = Path(f"{tmpdir}/flake.nix")
+    flakePath.write_text(flakePath.read_text().replace("$depsPath", f"{tmpdir}/dep"))
+    nix("flake", "lock", work_dir=tmpdir)
 
     compat = nix_eval_flake_compat(
         tmpdir,
