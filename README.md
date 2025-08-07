@@ -56,7 +56,7 @@ Lix flake-compat exposes the following attributes (which you can inspect with `n
   This option allows for faster evaluation by skipping this copy and breaking strict compatibility with flakes if desired.
 
   Setting this to false may lead to the content of gitignored paths or the absolute path of the flake being evaluated leaking into the evaluation.
-  We strongly recommend using [nix-diff] to verify evaluation produces the smae result.
+  We strongly recommend using [nix-diff] to verify evaluation produces the same result.
   Here be (some) dragons.
 
   See [Copying to the store](#copying-to-the-store).
