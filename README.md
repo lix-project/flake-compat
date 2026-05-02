@@ -2,7 +2,28 @@
 
 ## Usage
 
-To use, add the following to your `flake.nix`:
+### To consume flakes from Nix code
+
+If you would like to consume Nix code from flake entrypoints without using flake inputs (or flakes at all) yourself, you can use `flake-compat` to do this.
+As an example to consume external library `some-flake-library` (substitute your own here!), while using [`npins`](https://github.com/andir/npins) to manage dependencies, you may access the flake's outputs as follows:
+
+```nix
+let
+  sources = import ./npins;
+  flake = (
+    import sources.flake-compat {
+      src = sources.some-flake-library;
+    }
+  );
+in
+  flake.outputs
+```
+
+You may then access its `.packages`, `.nixosModules`, etc.
+
+### To add a `default.nix` entrypoint to a flake
+
+Add the following to your `flake.nix`:
 
 ```nix
 inputs.flake-compat = {
